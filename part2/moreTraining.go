@@ -46,6 +46,7 @@ func main() {
 
 	readTextStream()
 
+	// Race condition example with goroutines
 	p1, p2, p3 := "James", "Luke", "Mark"
 	s1, s2, s3 := 0, 0, 0
 	foodCount := 7
@@ -53,7 +54,27 @@ func main() {
 	go eatFood(&foodCount, &p1, &s1)
 	eatFood(&foodCount, &p2, &s2)
 
-	fmt.Printf("Score:\nPlayer 1: %v\nPlayer 2: %v\nPlayer 3: %v\n", s1, s2, s3);
+	fmt.Printf("Score:\nPlayer 1: %v\nPlayer 2: %v\nPlayer 3: %v\n", s1, s2, s3)
+
+	// Using channel make sure the threads finishes
+	// before continuing
+	// This channel is also buffered to take max 2 worker
+	workerChannel := make(chan int, 2)
+	arr := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+	go sumWorker(arr[len(arr)/2:], workerChannel)
+	go sumWorker(arr[:len(arr)/2], workerChannel)
+	res1, res2 := <-workerChannel, <-workerChannel
+	fmt.Printf("Sum of array is: %v\n", res1+res2)
+
+	queueChannel := make(chan int)
+	ticketIsOut := make(chan int)
+	go func() {
+		for i := 0; i < 10; i++ {
+			fmt.Printf("Ticket number %v is done.\n", i)
+		}
+		ticketIsOut <- 1
+	}()
+	takeTicket(queueChannel, ticketIsOut)
 }
 
 func customPrint(x interface{}) {
@@ -133,10 +154,10 @@ func eatFood(foodLeft *int, participant *string, score *int) {
 			time.Sleep(100 * time.Millisecond)
 			*foodLeft--
 			if *foodLeft <= -1 {
-				*score = -1;
+				*score = -1
 				fmt.Printf("%v tried to eat a food but there is none left, they starved and died.\n", *participant)
 			} else {
-				*score++;
+				*score++
 				fmt.Printf("%v has eaten 1 food: %v food left remaining.\n", *participant, *foodLeft)
 			}
 		} else {
@@ -146,6 +167,26 @@ func eatFood(foodLeft *int, participant *string, score *int) {
 }
 
 // Channel
-func sumChannel(s []int, c chan int) {
+func sumWorker(s []int, c chan int) {
 	// Write channel function
+	var sum int
+	for _, num := range s {
+		sum += num
+	}
+	fmt.Println("Finished!")
+	c <- sum
+}
+
+// Select: a keyword that let a goroutine wait untill an operation finishes
+// Ex: Make a support ticket simulation where a lot of people takes turn to consult
+func takeTicket(queueChannel chan int, ticketIsOut chan int) {
+	for i := 0; i < 10; i++ {
+		select {
+		case queueChannel <- i:
+			time.Sleep(1000 * time.Millisecond)
+		case <-ticketIsOut:
+			fmt.Println("Ticket is out for the day")
+			return
+		}
+	}
 }
